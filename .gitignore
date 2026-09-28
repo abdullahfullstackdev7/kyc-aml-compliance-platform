@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Environment / secrets
+.env
+git_verify.md
+PROJECT_PLAN.md
+
+# Dagster
+.dagster_home/
+
+# Dataset (raw/processed/generated data is not committed; scripts and small samples are)
+dataset/raw/
+dataset/processed/
+dataset/synthetic/
+dataset/documents/
+
+# Node / frontend (Phase 7+)
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Test artifacts
+htmlcov/
+.coverage
+coverage.xml

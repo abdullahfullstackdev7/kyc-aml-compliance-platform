@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        exclude: uv.lock
+
+  - repo: local
+    hooks:
+      - id: no-long-dash
+        name: Reject the long dash character (U+2014)
+        entry: python -c "import sys; content = open(sys.argv[1], encoding='utf-8').read(); sys.exit(1 if chr(0x2014) in content else 0)"
+        language: system
+        types: [text]
+        exclude: ^dataset/raw/
+
+      - id: mypy
+        name: mypy
+        entry: uv run mypy backend/app/services pipelines --ignore-missing-imports
+        language: system
+        pass_filenames: false
+        types: [python]

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: sentinelkyc
+          POSTGRES_USER: sentinelkyc
+          POSTGRES_PASSWORD: sentinelkyc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinelkyc -d sentinelkyc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: sentinelkyc
+      POSTGRES_PASSWORD: sentinelkyc
+      POSTGRES_DB: sentinelkyc
+      DATABASE_URL: postgresql+asyncpg://sentinelkyc:sentinelkyc@localhost:5432/sentinelkyc
+      DATABASE_URL_SYNC: postgresql+psycopg2://sentinelkyc:sentinelkyc@localhost:5432/sentinelkyc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Check for the long dash character (U+2014)
+        run: |
+          if grep -rP "\x{2014}" --include='*.py' --include='*.md' --include='*.yml' --include='*.yaml' \
+              --exclude-dir='.venv' --exclude-dir='node_modules' --exclude-dir='dataset/raw' .; then
+            echo "Found U+2014 (em dash); use a comma, colon, parentheses or hyphen instead."
+            exit 1
+          fi
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy backend/app/services pipelines --ignore-missing-imports
+
+      - name: Apply migrations
+        run: uv run alembic -c alembic.ini upgrade head
+
+      - name: Unit and integration tests
+        run: uv run pytest tests/ -v

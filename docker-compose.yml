@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: sentinelkyc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sentinelkyc}
+      POSTGRES_USER: ${POSTGRES_USER:-sentinelkyc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinelkyc} -d ${POSTGRES_DB:-sentinelkyc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinelkyc-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  dagster-webserver:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dagster
+    container_name: sentinelkyc-dagster-webserver
+    restart: unless-stopped
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "pipelines/workspace.yaml"]
+    env_file: .env
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sentinelkyc}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentinelkyc}
+      DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-sentinelkyc}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentinelkyc}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/opt/dagster/app
+      - dagster_home:/opt/dagster/dagster_home
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dagster-daemon:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dagster
+    container_name: sentinelkyc-dagster-daemon
+    restart: unless-stopped
+    command: ["dagster-daemon", "run"]
+    env_file: .env
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sentinelkyc}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentinelkyc}
+      DATABASE_URL_SYNC: postgresql+psycopg2://${POSTGRES_USER:-sentinelkyc}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-sentinelkyc}
+    volumes:
+      - .:/opt/dagster/app
+      - dagster_home:/opt/dagster/dagster_home
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  dagster_home:

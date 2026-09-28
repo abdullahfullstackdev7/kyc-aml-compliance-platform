@@ -1,0 +1,109 @@
+<?xml version="1.0" standalone="yes"?>
+<sdnList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML">
+  <publshInformation>
+    <Publish_Date>09/23/2026</Publish_Date>
+    <Record_Count>3</Record_Count>
+  </publshInformation>
+  <sdnEntry>
+    <uid>36</uid>
+    <lastName>AEROCARIBBEAN AIRLINES</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>CUBA</program>
+    </programList>
+    <akaList>
+      <aka>
+        <uid>12</uid>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <lastName>AERO-CARIBBEAN</lastName>
+      </aka>
+    </akaList>
+    <addressList>
+      <address>
+        <uid>25</uid>
+        <city>Havana</city>
+        <country>Cuba</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>2676</uid>
+    <firstName>Dr. Ayman</firstName>
+    <lastName>AL ZAWAHIRI</lastName>
+    <title>Operational and Military Leader of JIHAD GROUP</title>
+    <sdnType>Individual</sdnType>
+    <programList>
+      <program>SDGT</program>
+    </programList>
+    <idList>
+      <id>
+        <uid>1000</uid>
+        <idType>Passport</idType>
+        <idNumber>1084010</idNumber>
+        <idCountry>Egypt</idCountry>
+      </id>
+    </idList>
+    <akaList>
+      <aka>
+        <uid>4760</uid>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <lastName>AL-ZAWAHIRI</lastName>
+        <firstName>Ayman</firstName>
+      </aka>
+      <aka>
+        <uid>4761</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>SALIM</lastName>
+        <firstName>Ahmad Fuad</firstName>
+      </aka>
+    </akaList>
+    <dateOfBirthList>
+      <dateOfBirthItem>
+        <uid>1003</uid>
+        <dateOfBirth>19 Jun 1951</dateOfBirth>
+        <mainEntry>true</mainEntry>
+      </dateOfBirthItem>
+    </dateOfBirthList>
+    <placeOfBirthList>
+      <placeOfBirthItem>
+        <uid>1004</uid>
+        <placeOfBirth>Giza, Egypt</placeOfBirth>
+        <mainEntry>true</mainEntry>
+      </placeOfBirthItem>
+    </placeOfBirthList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>306</uid>
+    <lastName>BANCO NACIONAL DE CUBA</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>CUBA</program>
+    </programList>
+    <akaList>
+      <aka>
+        <uid>219</uid>
+        <type>a.k.a.</type>
+        <category>weak</category>
+        <lastName>BNC</lastName>
+      </aka>
+      <aka>
+        <uid>220</uid>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <lastName>NATIONAL BANK OF CUBA</lastName>
+      </aka>
+    </akaList>
+    <addressList>
+      <address>
+        <uid>199</uid>
+        <address1>Zweierstrasse 35</address1>
+        <city>Zurich</city>
+        <postalCode>CH-8022</postalCode>
+        <country>Switzerland</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+</sdnList>
