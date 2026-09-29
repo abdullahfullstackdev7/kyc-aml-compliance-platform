@@ -55,7 +55,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ConsoleLayout>
-              <Suspense fallback={<div className="p-10 text-sm text-neutral-900/50">Loading...</div>}>
+              <Suspense fallback={<div className="p-10 text-sm text-neutral-900/70">Loading...</div>}>
                 <Analytics />
               </Suspense>
             </ConsoleLayout>

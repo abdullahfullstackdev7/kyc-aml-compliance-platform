@@ -105,7 +105,7 @@ export default function Analytics() {
   return (
     <div className="p-6 md:p-10">
       <h1 className="text-2xl font-semibold text-navy dark:text-white">Analytics</h1>
-      <p className="mt-1 text-sm text-neutral-900/60 dark:text-white/60">
+      <p className="mt-1 text-sm text-neutral-900/70 dark:text-white/70">
         Operational metrics computed from real onboarding, screening and LLM usage data for your
         tenant. Revenue analytics (Phase 9.3) is out of scope for this build.
       </p>
@@ -161,7 +161,7 @@ export default function Analytics() {
           {llmOption && (
             <>
               <EChart option={llmOption} height={240} />
-              <p className="mt-2 text-xs text-neutral-900/50 dark:text-white/50">
+              <p className="mt-2 text-xs text-neutral-900/70 dark:text-white/70">
                 Cache hit rate: {((llm.data?.cache_hit_rate ?? 0) * 100).toFixed(1)}% &middot;{" "}
                 {llm.data?.total_calls ?? 0} total calls
               </p>

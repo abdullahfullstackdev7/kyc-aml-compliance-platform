@@ -36,7 +36,7 @@ export default function ReviewQueue() {
   return (
     <div className="p-6 md:p-10">
       <h1 className="text-2xl font-semibold text-navy dark:text-white">Review Queue</h1>
-      <p className="mt-1 text-sm text-neutral-900/60 dark:text-white/60">
+      <p className="mt-1 text-sm text-neutral-900/70 dark:text-white/70">
         Cases awaiting or recently given a disposition, tenant-scoped by your session.
       </p>
 
@@ -51,7 +51,7 @@ export default function ReviewQueue() {
             className={`rounded-t-lg px-4 py-2 text-sm font-medium ${
               tier === t.value
                 ? "border-b-2 border-teal text-teal"
-                : "text-neutral-900/60 hover:text-navy dark:text-white/60 dark:hover:text-white"
+                : "text-neutral-900/70 hover:text-navy dark:text-white/70 dark:hover:text-white"
             }`}
           >
             {t.label}
@@ -67,11 +67,11 @@ export default function ReviewQueue() {
       )}
 
       {!error && cases === null && (
-        <div className="mt-6 text-sm text-neutral-900/50 dark:text-white/50">Loading...</div>
+        <div className="mt-6 text-sm text-neutral-900/70 dark:text-white/70">Loading...</div>
       )}
 
       {cases && cases.length === 0 && (
-        <div className="mt-6 text-sm text-neutral-900/50 dark:text-white/50">
+        <div className="mt-6 text-sm text-neutral-900/70 dark:text-white/70">
           No cases in this view.
         </div>
       )}
@@ -79,7 +79,7 @@ export default function ReviewQueue() {
       {cases && cases.length > 0 && (
         <div className="mt-6 overflow-x-auto rounded-card border border-black/5 dark:border-white/10">
           <table className="w-full text-left text-sm">
-            <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-900/50 dark:bg-white/5 dark:text-white/50">
+            <thead className="bg-neutral-50 text-xs uppercase tracking-wide text-neutral-900/70 dark:bg-white/5 dark:text-white/70">
               <tr>
                 <th className="px-4 py-3">Case</th>
                 <th className="px-4 py-3">Tier</th>
@@ -111,7 +111,7 @@ export default function ReviewQueue() {
                       "-"
                     )}
                   </td>
-                  <td className="px-4 py-3 text-neutral-900/60 dark:text-white/60">
+                  <td className="px-4 py-3 text-neutral-900/70 dark:text-white/70">
                     {new Date(c.created_at).toLocaleDateString()}
                   </td>
                 </tr>

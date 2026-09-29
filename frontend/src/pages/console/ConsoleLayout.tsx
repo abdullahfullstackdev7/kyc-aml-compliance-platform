@@ -33,7 +33,7 @@ export function ConsoleLayout({ children }: { children: ReactNode }) {
             Analytics
           </Link>
         </nav>
-        <div className="mt-auto space-y-2 border-t border-black/5 pt-4 text-xs text-neutral-900/50 dark:border-white/10 dark:text-white/50">
+        <div className="mt-auto space-y-2 border-t border-black/5 pt-4 text-xs text-neutral-900/70 dark:border-white/10 dark:text-white/70">
           {session && (
             <>
               <div>User #{session.userId}</div>

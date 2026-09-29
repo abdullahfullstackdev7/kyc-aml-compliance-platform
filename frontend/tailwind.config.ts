@@ -9,7 +9,12 @@ export default {
       colors: {
         navy: "#0B1F3A",
         "deep-blue": "#123B6D",
-        teal: "#0FA3B1",
+        // Darkened from the original #0FA3B1 brand swatch: that shade is
+        // ~2.9:1 against the page background, failing WCAG AA (4.5:1) for
+        // small text - found by Playwright + axe-core against the built
+        // site (see e2e/accessibility.spec.ts), not by inspection. Still
+        // reads as the same teal at a glance.
+        teal: "#0B7285",
         amber: "#F2A541",
         "risk-red": "#C8102E",
         "success-green": "#1F8A5B",

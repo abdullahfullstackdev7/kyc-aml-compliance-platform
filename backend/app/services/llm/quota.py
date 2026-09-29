@@ -105,8 +105,8 @@ def record_failure(provider: str) -> None:
     pipe.expire(key, CB_FAILURE_TTL_SECONDS)
     failures = pipe.execute()[0]
     if failures >= settings.llm_circuit_breaker_failures:
-        client.setex(
-            f"llm:cb:{provider}:open", settings.llm_circuit_breaker_cooldown_seconds, "1"
+        client.set(
+            f"llm:cb:{provider}:open", "1", ex=settings.llm_circuit_breaker_cooldown_seconds
         )
 
 

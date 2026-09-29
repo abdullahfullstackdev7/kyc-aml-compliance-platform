@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image
 from rapidfuzz import fuzz
 
+from backend.app.core.config import get_settings
+
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 
@@ -31,6 +33,35 @@ class DocumentCheckResult:
         self.check_type = check_type
         self.result = result  # pass | warn | fail
         self.details = details
+
+
+def check_malware_scan(content: bytes) -> DocumentCheckResult:
+    """Scans the upload with ClamAV (clamd) before anything else touches it
+    - OpenCV/PIL/Tesseract are not hardened against adversarial input, so a
+    malicious file should never reach them. Degrades to a warning (not a
+    silent pass) if the ClamAV daemon is unreachable, consistent with this
+    module's convention for optional external dependencies (see run_ocr);
+    unlike OCR, a scan we could not perform is worth surfacing to a
+    reviewer rather than hiding."""
+    settings = get_settings()
+    try:
+        import clamd
+
+        client = clamd.ClamdNetworkSocket(
+            host=settings.clamav_host, port=settings.clamav_port, timeout=settings.clamav_timeout_seconds
+        )
+        result = client.instream(io.BytesIO(content))
+    except Exception as exc:  # noqa: BLE001 - daemon unreachable, timeout, or client error
+        return DocumentCheckResult(
+            "malware_scan", "warn", {"reason": f"scanner unavailable: {exc}"}
+        )
+
+    status, signature = result.get("stream", ("ERROR", "unknown scan error"))
+    if status == "FOUND":
+        return DocumentCheckResult("malware_scan", "fail", {"reason": "malware detected", "signature": signature})
+    if status == "OK":
+        return DocumentCheckResult("malware_scan", "pass", {})
+    return DocumentCheckResult("malware_scan", "warn", {"reason": f"scan error: {signature}"})
 
 
 def check_mime_and_size(content: bytes, declared_mime: str | None) -> DocumentCheckResult:
@@ -269,8 +300,12 @@ def run_document_verification(
     """Runs the full pipeline and returns one result per check. The caller
     persists each as a document_checks row and decides overall pass/fail
     from the presence of any "fail" result."""
-    results = [check_mime_and_size(content, declared_mime)]
+    results = [check_malware_scan(content)]
     if results[0].result == "fail":
+        return results
+
+    results.append(check_mime_and_size(content, declared_mime))
+    if results[-1].result == "fail":
         return results
 
     results.append(check_image_quality(content))

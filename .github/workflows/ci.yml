@@ -22,6 +22,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       POSTGRES_HOST: localhost
       POSTGRES_USER: sentinelkyc
@@ -29,6 +38,13 @@ jobs:
       POSTGRES_DB: sentinelkyc
       DATABASE_URL: postgresql+asyncpg://sentinelkyc:sentinelkyc@localhost:5432/sentinelkyc
       DATABASE_URL_SYNC: postgresql+psycopg2://sentinelkyc:sentinelkyc@localhost:5432/sentinelkyc
+      REDIS_URL: redis://localhost:6379/0
+      # Dev-only credential for the restricted application role that
+      # migration 0004 creates; never a real secret (this Postgres
+      # container is thrown away at the end of the CI run).
+      APP_DB_PASSWORD: sentinelkyc_app_ci_password
+      APP_DATABASE_URL: postgresql+asyncpg://sentinelkyc_app:sentinelkyc_app_ci_password@localhost:5432/sentinelkyc
+      APP_DATABASE_URL_SYNC: postgresql+psycopg2://sentinelkyc_app:sentinelkyc_app_ci_password@localhost:5432/sentinelkyc
     steps:
       - uses: actions/checkout@v4
 
@@ -51,6 +67,19 @@ jobs:
             exit 1
           fi
 
+      - name: Check for banned informal terms
+        run: |
+          # A compliance product's docs and code comments are read by
+          # auditors and examiners; keep them at the same professional
+          # register as the rest of the README (see PROJECT_PLAN.md
+          # section 7's "neutral, professional language" requirement).
+          if grep -rniP '\b(gonna|wanna|kinda|gotta|lol|omg|tbh|hacky|sketchy)\b' \
+              --include='*.py' --include='*.md' --include='*.tsx' --include='*.ts' \
+              --exclude-dir='.venv' --exclude-dir='node_modules' --exclude-dir='dataset/raw' .; then
+            echo "Found an informal term; use professional, neutral wording instead."
+            exit 1
+          fi
+
       - name: Lint
         run: |
           uv run ruff check .
@@ -59,8 +88,23 @@ jobs:
       - name: Type check
         run: uv run mypy backend/app/services pipelines --ignore-missing-imports
 
+      - name: Generate dev JWT keys and encryption secrets
+        run: |
+          uv run python infra/scripts/generate_dev_secrets.py | tee /tmp/secrets_output.txt
+          grep -E '^(JWT_PRIVATE_KEY_PATH|JWT_PUBLIC_KEY_PATH|ENCRYPTION_MASTER_KEY|BLIND_INDEX_KEY)=' \
+            /tmp/secrets_output.txt >> "$GITHUB_ENV"
+
       - name: Apply migrations
         run: uv run alembic -c alembic.ini upgrade head
 
       - name: Unit and integration tests
-        run: uv run pytest tests/ -v
+        run: |
+          uv run pytest tests/ -v \
+            --cov=backend/app/services --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=85
+        # Some tests (matching-evaluation recall gate, rescreen candidate
+        # lookups) need real OFAC SDN data or a generated ground truth set
+        # and skip gracefully when neither is present; ingesting the full
+        # ~19k-entity SDN corpus on every CI run is deliberately out of
+        # scope here to keep the pipeline fast (see `make seed` for the
+        # full local ingestion path used before a release).

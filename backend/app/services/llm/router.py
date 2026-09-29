@@ -54,8 +54,13 @@ def generate_json(
     if not runtime_settings.is_enabled():
         return RouterResult(result=None, provider=None, status="fallback", latency_ms=0)
 
+    primary = _fallback_provider_order()[0]
+    primary_failed = False
+
     for name in _fallback_provider_order():
         if not _provider_available(name):
+            if name == primary:
+                primary_failed = True
             continue
         try:
             provider = get_provider(name)
@@ -68,7 +73,14 @@ def generate_json(
             )
         except Exception:  # noqa: BLE001 - any provider failure fails over; never blocks the workflow
             quota.record_failure(name)
+            if name == primary:
+                primary_failed = True
             continue
+
+        if primary_failed and name != primary:
+            from backend.app.core.observability import LLM_FAILOVERS_TOTAL
+
+            LLM_FAILOVERS_TOTAL.inc()
 
         quota.record_success(name)
         quota.record_usage(name, result.prompt_tokens + result.completion_tokens)

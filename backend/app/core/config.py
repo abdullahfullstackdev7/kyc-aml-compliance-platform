@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Vite dev server origins for the console/portal frontend (Phase 8).
     cors_allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    clamav_host: str = "localhost"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: int = 10
+
     ofac_sdn_url: str = (
         "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"
     )

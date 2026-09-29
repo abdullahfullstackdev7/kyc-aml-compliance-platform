@@ -96,4 +96,4 @@ def consume_reset_token(session: Session, token: str, new_password: str) -> None
     session.flush()
 
     ttl_seconds = max(1, int(payload["exp"] - dt.datetime.now(dt.UTC).timestamp()))
-    client.setex(redis_key, ttl_seconds, "1")
+    client.set(redis_key, "1", ex=ttl_seconds)

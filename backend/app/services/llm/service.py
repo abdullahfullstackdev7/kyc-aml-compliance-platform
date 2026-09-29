@@ -64,6 +64,7 @@ def _run(
             )
         )
         session.flush()
+        _observe_llm_call("cache", "cached")
         return cached
 
     start = time.monotonic()
@@ -94,6 +95,7 @@ def _run(
             )
         )
         session.flush()
+        _observe_llm_call(outcome.provider or "unknown", "success")
         return response
 
     response = _template_fallback(payload)
@@ -112,7 +114,14 @@ def _run(
         )
     )
     session.flush()
+    _observe_llm_call("none", "fallback")
     return response
+
+
+def _observe_llm_call(provider: str, status: str) -> None:
+    from backend.app.core.observability import LLM_CALLS_TOTAL
+
+    LLM_CALLS_TOTAL.labels(provider=provider, status=status).inc()
 
 
 def generate_case_summary(session: Session, case: Case, payload: dict) -> dict:

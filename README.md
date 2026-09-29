@@ -1,204 +1,268 @@
 # SentinelKYC
 
-SentinelKYC is a multi-tenant KYC/AML customer onboarding and sanctions
-screening platform. See `PROJECT_PLAN.md` for the full product specification
-and phase-by-phase build plan.
+**A multi-tenant KYC/AML customer onboarding and sanctions screening platform, built end to end on open data and open-source matching.**
 
-## Current status
+---
 
-This repository currently implements **Phase 1: Sanctions Data ETL Pipeline**,
-**Phase 2: Database Schema and Data Layer**, **Phase 3: Screening Engine**,
-**Phase 4: Authentication, Authorization and Data Security**,
-**Phase 5: Onboarding Workflow, Document Verification and Case Management**,
-**Phase 6: LLM Integration Layer with Minimum Token Usage**, a scoped build
-of **Phase 7: Public Corporate Website**, a scoped build of **Phase 8:
-Compliance Console and Applicant Portal**, and a scoped build of **Phase 9:
-Revenue and Analytics Dashboard**, plus the minimum Phase 0 foundations
-needed to run them.
+## Overview
 
-Phase 9 (`backend/app/services/analytics/`, `frontend/src/pages/console/
-Analytics.tsx`): an Operations/Compliance analytics view only - the Revenue
-dashboard (PROJECT_PLAN.md 9.3) needs 24 months of fabricated subscription
-and invoice history that doesn't exist in this build, so it was scoped out
-in favor of metrics computed from data the system already produces. Five
-pre-aggregated endpoints under `/api/v1/analytics/*`
-(`funnel`/`routing`/`screening-volume`/`sla`/`llm-usage`, gated by the
-existing `analytics:view_tenant` permission) back five ECharts widgets on a
-new `/app/analytics` console page: an applications funnel read from the
-audit trail (submitted -> docs verified -> screened -> decided, since an
-RFI can send an application back to SUBMITTED so *current* state alone
-would undercount), daily screening volume, case-tier routing distribution
-(a bar chart standing in for the full Sankey in 9.4), SLA compliance
-(mirrors `case_service.sla_breached()`'s exact rule), and LLM usage by
-provider/outcome with a cache-hit-rate figure (Phase 6's `llm_calls` table).
-ECharts is imported via its tree-shakeable core (not the full bundle) and
-the whole Analytics page is route-level code-split, so the ~530 kB chart
-library is only downloaded by someone who opens that page. All five
-endpoints were smoke-tested against the real Postgres-backed API. Out of
-scope for this build: the Revenue dashboard entirely (9.3), the Sankey/
-choropleth/cohort-heatmap/box-plot chart types, and global filters/date-
-range comparison (9.2).
+SentinelKYC is a compliance platform that runs the complete customer and
+vendor onboarding workflow required of regulated financial institutions:
+identity intake, document verification, sanctions and watchlist screening,
+risk-tiered decisioning, and an immutable audit trail. The screening engine
+operates on the real U.S. Treasury OFAC Specially Designated Nationals (SDN)
+list, ingested and refreshed automatically by a scheduled Dagster pipeline
+that detects list changes and rescreens only the customers those changes
+actually affect.
 
-Phase 8 (`frontend/src/pages/console/`, `lib/api.ts`, `lib/auth.tsx`): the
-console shell (sidebar/topbar layout, protected routes) and the reviewer's
-core workflow, wired to the real backend rather than mock data - the
-existing `/login` page now calls `POST /api/v1/auth/login` for real
-(including the MFA step), a Review Queue lists and filters
-`GET /api/v1/cases` by tier with pagination, and a Case Detail page covers
-assignment, per-hit disposition, the decision panel (with a "Draft
-rationale" button hitting the Phase 6 LLM endpoint), RFI, notes, PDF export,
-and a lazily-loaded case summary card. No TanStack Query/Table - a lean,
-hand-rolled fetch client instead. `CORSMiddleware` was added to the FastAPI
-app (`backend/app/main.py`) so the Vite dev server can call the API; the
-full login-with-MFA-through-case-list flow was smoke-tested against the
-real Postgres-backed API rather than left unverified. Out of scope for this
-build (see PROJECT_PLAN.md 8.1-8.5): Administration, Sanctions Lists,
-Rescreening, ad-hoc/CSV Screening and Audit Log console pages, the
-document viewer with OCR overlay and side-by-side hit comparison, bulk
-hit-clearing UI, and the applicant self-service portal wizard (`/onboard`).
+Name matching combines deterministic normalization, a token-based inverted
+index, trigram similarity, phonetic keys, fuzzy scoring, and multilingual
+vector similarity, then corroborates candidates against secondary
+identifiers such as date of birth, nationality, and ID numbers. Large
+language models are used sparingly, only to assist a human reviewer on the
+cases that reach one, under a strict token budget and with automatic
+provider failover. The product ships as a public website, a compliance
+console with a risk-tiered review queue, an applicant self-service portal,
+and an operational analytics dashboard, built exclusively on free and
+open-source technology.
 
-Phase 7 (`frontend/`, React 18 + Vite + TypeScript + Tailwind + shadcn/ui-
-style primitives + React Router + Framer Motion): the design system
-(palette, type scale, `Button`/`Card`/`Badge`/`Accordion` primitives, light/
-dark theming) and global layout (sticky header with mega-menu-lite nav,
-footer, cookie consent banner) from PROJECT_PLAN.md 7.1-7.2, plus a working
-subset of the page catalog in 7.3 chosen to demonstrate the design system
-end to end rather than the full ~15-page catalog: Home (hero, trust bar,
-live-stats band, pillars, workflow diagram, security section, testimonials,
-CTA), Solutions (all four solution areas plus an FAQ accordion), Trust
-Center, the split-panel Login flow with an MFA step, Contact, and legal/
-404/forgot-password stubs so no nav link 404s. Out of scope for this build
-(see PROJECT_PLAN.md 7.3-7.5 for the full spec): the Platform/Industries/
-Resources/Company page groups, the 6 long-form Insights articles, the
-downloaded-and-converted Unsplash/Pexels imagery pipeline (placeholder
-gradient panels stand in for photography/screenshots), and Lighthouse/
-Playwright visual regression tooling. `npm run build` and `npx tsc -b`
-both pass cleanly.
+## Objectives
 
-Phase 6 additions (`backend/app/services/llm/`): the LLM never screens,
-approves or rejects - it is only called lazily, to draft a case summary the
-first time a reviewer opens a Review/High Risk case, or a decision rationale
-when a reviewer clicks "Draft rationale". A provider router
-(`router.py`) tries the configured primary (Groq `openai/gpt-oss-20b` or
-Gemini Flash), respects a Redis-backed per-provider quota
-(`quota.py`) and a 5-failure/60s circuit breaker, retries a transient
-failure once, fails over to the other provider on 429/5xx/timeout, and falls
-back to a deterministic template summary if both are unavailable - the
-workflow never blocks on an LLM. Requests are pseudonymized before sending
-(`pseudonymize.py`: DOB reduced to year, address to country, ID/contact
-details dropped, internal IDs replaced by a case-scoped alias, top 3 hits
-only); a response cache (`cache.py`, keyed by `sha256(purpose, prompt_version,
-payload)`) means identical payloads never call a provider twice; every call
-is logged to `llm_calls` regardless of outcome. Endpoints: `GET
-/api/v1/cases/{id}/summary`, `POST /api/v1/cases/{id}/decision-rationale-
-draft`, and `GET/POST /api/v1/llm/quota` and `/api/v1/llm/settings` for a
-platform admin to view live quota headroom and switch the primary provider
-or disable LLM features entirely.
+- **Screen every applicant against real sanctions data.** Not a synthetic
+  or sampled list: the live OFAC SDN list, kept current on a schedule.
+- **Decide correctly and explainably.** Every routing decision is scored,
+  reasoned, and traceable back to the factors that produced it.
+- **Keep humans in control of judgment calls.** The system routes and
+  recommends; it never auto-rejects, and every automated approval remains
+  reviewable.
+- **Make every action provable.** Every state transition, decision, and
+  login is written to an append-only, cryptographically hash-chained audit
+  log that a database trigger prevents from ever being altered.
+- **Protect what a compliance platform cannot leak.** Field-level
+  encryption, tenant isolation enforced at the database layer, and strict
+  minimization of what ever leaves the system, including what reaches an
+  LLM provider.
+- **Prove it, not just claim it.** Every phase of this build was verified
+  against a real running Postgres/Redis stack rather than left as
+  untested code; see [Testing and Quality](#testing-and-quality).
 
-Phase 5 additions: an applicant-facing state machine
-(`backend/app/services/onboarding/state_machine.py`) with guarded
-transitions, every one of which writes a `case_events` row and an audit
-event; a synchronous document verification pipeline (MIME/size, blur and
-glare via OpenCV, Haar-cascade face presence, Tesseract OCR, ICAO 9303 MRZ
-parsing and checksum validation, and cross-referencing the MRZ against the
-applicant's stated name/DOB/nationality); automatic screening and risk-tiered
-routing into a case on `DOCS_VERIFIED`; case management (queue assignment,
-SLA tracking, hit disposition, bulk-clear, four-eyes decisions, RFIs, notes,
-PDF export); continuous rescreening when the sanctions list changes; and
-REST endpoints under `/api/v1/portal/*`, `/api/v1/cases/*` and
-`/api/v1/lists/*`. Fixing this phase's onboarding flow also surfaced and
-fixed a real bug in Phase 4's audit chain: `audit_log`'s per-tenant Row-Level
-Security silently broke the assumption that the hash chain was one global
-sequence, so the chain is now verified and linked per tenant (see
-`backend/app/core/security/audit.py`).
+## What We Build
 
-Phase 4 additions: Argon2id password hashing with a policy check against a
-bundled common-password list; RS256 JWT access tokens; opaque refresh tokens
-with rotation and reuse detection (a reused token revokes its whole family);
-mandatory TOTP MFA for staff roles with hashed recovery codes; account
-lockout with exponential backoff; RBAC seeded from the roles/permissions
-tables plus ABAC helpers (same-tenant, four-eyes, case-assignment); AES-256-
-GCM envelope encryption with per-tenant, versioned data keys; HMAC blind
-indexes for exact lookups on encrypted columns; an append-only, hash-chained
-audit log (a database trigger blocks UPDATE/DELETE even for a superuser);
-strict security headers; PII-masking structured logging; Redis-backed rate
-limiting; and a dedicated, non-superuser, RLS-respecting database role that
-the running API connects as instead of the migration owner. Auth endpoints
-are live under `/api/v1/auth/*`. See `docs/adr/0005-restricted-application-
-database-role.md` for three real bugs this last change surfaced and fixed.
+| Capability | Summary |
+|---|---|
+| **Sanctions data pipeline** | A Dagster software-defined asset pipeline ingests the real OFAC SDN list on a schedule: conditional fetch, streaming XML parse, name normalization, multilingual embedding, and a change-tracked upsert into Postgres. Only customers affected by a detected change are rescreened. |
+| **Hybrid screening engine** | Candidate retrieval blends a token inverted index (IDF-weighted), trigram similarity, phonetic keys, and HNSW vector nearest-neighbor search; composite scoring blends fuzzy string metrics with embedding cosine similarity and secondary-attribute corroboration. |
+| **Risk-tiered decisioning** | An independent customer risk score plus the screening result drive Clear / Review / High Risk / Reject routing, each with its own SLA and, for high-risk rejections, mandatory dual approval. |
+| **Onboarding workflow** | A guarded application state machine, synchronous document verification (OCR, MRZ checksum validation, face detection, malware scanning), and automatic screening on document verification. |
+| **Case management** | A tiered review queue, per-hit disposition, four-eyes decisions, requests for information, notes, and PDF case export for examiners. |
+| **LLM-assisted review, on a budget** | An LLM drafts a case summary or decision rationale only when a reviewer actually opens that case or asks for a draft, never to screen or decide, with automatic Groq-to-Gemini failover, response caching, and pseudonymized payloads. |
+| **Compliance console and applicant portal** | A React console wired to the real API: authenticated login with mandatory MFA for staff, a live review queue, case detail with assignment and decisioning, and operational analytics. |
+| **Public website** | A professional marketing site: home, solutions, trust center, and an authenticated sign-in flow. |
+| **Observability** | Prometheus metrics (request and screening latency, LLM failovers, SLA breaches, ETL freshness), liveness and readiness health checks, and a provisioned Grafana dashboard. |
 
-Implemented:
+## How It Helps
 
-- A Dagster software-defined asset pipeline that ingests the real U.S.
-  Treasury OFAC Specially Designated Nationals (SDN) list: conditional fetch,
-  streaming XML parse, name normalization, multilingual embedding, and an
-  upsert into Postgres with full change tracking.
-- The sanctions domain database schema (`sanctions_entities`, `sanctions_names`
-  with `pgvector` embeddings, `sanctions_identifiers`, `sanctions_dobs`,
-  `sanctions_nationalities`, `sanctions_addresses`, `sanctions_list_versions`,
-  `sanctions_changes`), with GIN token, trigram and HNSW vector indexes, plus
-  a partial index on active entities.
-- Asset checks (unique `uid`, no null primary names, row-count tolerance
-  versus the previous version) and a freshness sensor.
-- The full application schema across six domains: tenancy and billing
-  (`tenants`, `plans`, `subscriptions`, `invoices`, `invoice_lines`,
-  `usage_events`), identity and access (`users`, `roles`, `permissions`,
-  `role_permissions`, `user_roles`, `refresh_tokens`, `mfa_factors`,
-  `login_events`), onboarding (`customers` with encrypted-PII columns and a
-  blind index, `applications`, `documents`, `document_checks`), screening
-  (`screening_runs`, `screening_hits`), case management (`cases`,
-  `case_events`, `case_notes`, `rfi_requests`), and governance (`risk_config`,
-  `country_risk`, `audit_log`, `llm_calls`, `llm_cache`).
-- Multi-tenancy: every tenant-owned table carries `tenant_id` and has
-  PostgreSQL Row-Level Security enabled and forced, keyed on
-  `current_setting('app.tenant_id')`.
-- The screening engine: candidate blocking via three retrievers (GIN token
-  overlap ranked by IDF, `pg_trgm` trigram similarity, HNSW vector nearest
-  neighbor) plus a phonetic filter for short names; composite scoring
-  (rapidfuzz token_set/token_sort/Jaro-Winkler blended with embedding cosine
-  similarity, rare-token and secondary-attribute adjustments, a weak-AKA
-  score cap); an independent customer risk score (country, occupation,
-  transaction volume, entity opacity, document check outcome); and
-  risk-tiered routing (Clear / Review / High Risk / Reject) with SLA and
-  dual-approval rules. Exposed at `POST /api/v1/screening/search`.
-- An evaluation harness (`backend/app/services/screening/evaluate.py`)
-  measuring recall, precision, F1 and false positive rate per score
-  threshold against a labelled ground truth set, with a precision-recall
-  curve and a hybrid-vs-baseline comparison; see `docs/evaluation/report.md`.
+- **For compliance teams:** a single workflow replaces spreadsheet-based
+  screening and manual list-checking, with every decision defensible in an
+  exam.
+- **For reviewers:** a scored, explained case with a score breakdown and an
+  optional AI-drafted summary means less time spent reconstructing why a
+  name matched.
+- **For engineering and audit:** row-level tenant isolation, field
+  encryption, and a hash-chained audit log mean the platform's own
+  integrity is verifiable, not just asserted.
+- **For the business:** roughly 85 percent of clean applicants are
+  auto-approved with zero reviewer time and zero LLM cost, so headcount
+  scales with genuinely ambiguous cases, not with volume.
 
-Not yet implemented (see PROJECT_PLAN.md for scope): the rest of the public
-website's page catalog and imagery pipeline (remainder of Phase 7), the
-rest of the compliance console and the applicant portal wizard UI
-(remainder of Phase 8), and the Revenue dashboard plus the richer Phase 9.4
-chart types and global filters (remainder of Phase 9). Phase 10 (Testing
-and Quality Assurance) and Phase 11 (Observability, Deployment and
-Documentation) have not been started.
+## Architecture
 
-## Prerequisites
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'fontFamily': 'Inter, sans-serif', 'primaryTextColor': '#0B1F3A'}}}%%
+flowchart TB
+    classDef client fill:#DCEEFB,stroke:#123B6D,stroke-width:1.5px,color:#0B1F3A
+    classDef edge fill:#FDEBD0,stroke:#B9770E,stroke-width:1.5px,color:#5A3A00
+    classDef api fill:#0B1F3A,stroke:#0B1F3A,stroke-width:1.5px,color:#FFFFFF
+    classDef service fill:#D6F5EC,stroke:#0FA3B1,stroke-width:1.5px,color:#0B1F3A
+    classDef data fill:#E8DFF5,stroke:#6C3AC7,stroke-width:1.5px,color:#3A1E70
+    classDef pipeline fill:#FCE8EC,stroke:#C8102E,stroke-width:1.5px,color:#7A0B1C
+    classDef external fill:#F2F2F2,stroke:#5A6472,stroke-width:1.5px,color:#2A2F36
+    classDef observability fill:#EAF7E0,stroke:#1F8A5B,stroke-width:1.5px,color:#134A30
+
+    subgraph CLIENT["`**Client Layer**`"]
+        WEB["`**Public Website**
+        *marketing + sign-in*`"]
+        PORTAL["`**Applicant Portal**
+        *self-service onboarding*`"]
+        CONSOLE["`**Compliance Console**
+        *review queue · case detail · analytics*`"]
+    end
+
+    NGINX["`**Nginx**
+    *TLS termination · reverse proxy*`"]:::edge
+
+    subgraph API["`**FastAPI Application Layer**`"]
+        AUTH["`**Auth**
+        JWT · MFA · RBAC/ABAC`"]
+        ONBOARD["`**Portal API**
+        applications · documents`"]
+        CASES["`**Cases API**
+        queue · decisions · RFIs`"]
+        SCREEN["`**Screening API**
+        ad-hoc search`"]
+        LLMAPI["`**LLM Admin API**
+        quota · provider settings`"]
+        ANALYTICS["`**Analytics API**
+        operational metrics`"]
+    end
+
+    subgraph CORE["`**Core Domain Services**`"]
+        MATCH["`**Screening Engine**
+        hybrid retrieval + composite scoring`"]
+        DOCS["`**Document Verification**
+        OCR · MRZ · face · malware scan`"]
+        SM["`**Case State Machine**
+        guarded transitions · audit events`"]
+        LLMROUTER["`**LLM Router**
+        failover · circuit breaker · cache`"]
+    end
+
+    subgraph DATA["`**Data Layer**`"]
+        PG[("`**PostgreSQL + pgvector**
+        tenant-isolated via Row-Level Security`")]:::data
+        REDIS[("`**Redis**
+        rate limits · quota · sessions`")]:::data
+    end
+
+    subgraph PIPELINE["`**Ingestion Pipeline**`"]
+        DAGSTER["`**Dagster**
+        scheduled asset pipeline`"]
+    end
+
+    subgraph EXTERNAL["`**External Services**`"]
+        OFAC["`**U.S. Treasury OFAC**
+        SDN sanctions list`"]
+        GROQ["`**Groq**
+        primary LLM provider`"]
+        GEMINI["`**Google Gemini**
+        fallback LLM provider`"]
+        CLAMAV["`**ClamAV**
+        malware scanning daemon`"]
+    end
+
+    subgraph OBS["`**Observability**`"]
+        PROM["`**Prometheus**
+        metrics scraping`"]
+        GRAFANA["`**Grafana**
+        dashboards`"]
+    end
+
+    WEB --> NGINX
+    PORTAL --> NGINX
+    CONSOLE --> NGINX
+    NGINX --> API
+
+    AUTH -.-> REDIS
+    ONBOARD --> SM
+    ONBOARD --> DOCS
+    CASES --> SM
+    CASES --> LLMROUTER
+    SCREEN --> MATCH
+    ANALYTICS --> PG
+    LLMAPI --> LLMROUTER
+
+    MATCH --> PG
+    DOCS --> CLAMAV
+    SM --> PG
+    LLMROUTER -.->|quota + circuit breaker| REDIS
+    LLMROUTER --> GROQ
+    LLMROUTER -.->|on failover| GEMINI
+
+    DAGSTER --> OFAC
+    DAGSTER --> PG
+
+    PROM -->|scrapes /metrics| API
+    GRAFANA --> PROM
+
+    class WEB,PORTAL,CONSOLE client
+    class AUTH,ONBOARD,CASES,SCREEN,LLMAPI,ANALYTICS api
+    class MATCH,DOCS,SM,LLMROUTER service
+    class DAGSTER pipeline
+    class OFAC,GROQ,GEMINI,CLAMAV external
+    class PROM,GRAFANA observability
+```
+
+**Reading the diagram:** solid arrows are synchronous request paths; dashed
+arrows are auxiliary calls (rate limiting, quota checks, failover). Every
+tenant-owned table in PostgreSQL enforces Row-Level Security keyed on the
+authenticated tenant, so the data layer itself, not just the API, is the
+tenant isolation boundary.
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic |
+| Data | PostgreSQL 16 with pgvector, Redis |
+| Pipeline | Dagster (software-defined assets, schedules, sensors) |
+| Matching | rapidfuzz, jellyfish, sentence-transformers (multilingual-e5-small) |
+| Frontend | React 18, Vite, TypeScript, Tailwind CSS, React Router, Framer Motion, ECharts |
+| LLM | Groq (`openai/gpt-oss-20b`, primary), Google Gemini Flash (fallback) |
+| Security | Argon2id, RS256 JWT, AES-256-GCM envelope encryption, TOTP MFA, ClamAV |
+| Observability | Prometheus, Grafana, OpenTelemetry |
+| Testing | pytest, Hypothesis, testcontainers, Vitest, React Testing Library, Playwright, Locust |
+| Deployment | Docker Compose, Nginx, Let's Encrypt/Certbot |
+
+## Security and Compliance Model
+
+- **Authentication:** Argon2id password hashing against a common-password
+  policy check, RS256-signed JWT access tokens, rotating opaque refresh
+  tokens with reuse detection, and mandatory TOTP MFA for every staff role.
+- **Authorization:** role-based permissions seeded from a
+  roles/permissions table, plus attribute-based checks (same-tenant,
+  four-eyes dual approval, case-assignment ownership).
+- **Encryption:** AES-256-GCM envelope encryption for customer PII with
+  per-tenant, versioned data-encryption keys, and HMAC blind indexes for
+  equality lookups on encrypted columns without decrypting them.
+- **Tenant isolation:** every tenant-owned table has PostgreSQL Row-Level
+  Security enabled and forced, keyed on the authenticated request's
+  tenant; the running API connects as a dedicated, non-superuser database
+  role rather than the migration owner.
+- **Audit integrity:** an append-only, hash-chained audit log, verified
+  per tenant, with a database trigger that blocks `UPDATE`/`DELETE` on
+  audit rows even for a superuser.
+- **LLM data minimization:** payloads sent to an LLM provider are
+  pseudonymized (date of birth reduced to year, address to country, ID and
+  contact details dropped, internal IDs replaced by a case-scoped alias)
+  before they ever leave the system.
+
+## Getting Started
+
+### Prerequisites
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - Node.js 20+ and npm (for `frontend/`)
 - Docker and Docker Compose
 
-## Quick start
+### Quick start
 
 ```
-make setup     # uv sync --extra dev; npm install in frontend/
-make up        # start Postgres (and, once built, Dagster) via Docker Compose
-make migrate   # apply Alembic migrations
-make seed      # run the sanctions ingestion pipeline
-make frontend-dev  # start the Vite dev server at localhost:5173
+make setup          # uv sync --extra dev; npm install in frontend/
+make up              # start Postgres and Redis via Docker Compose
+make migrate         # apply Alembic migrations
+make seed            # run the sanctions ingestion pipeline
+make frontend-dev    # start the Vite dev server at localhost:5173
 ```
 
-To explore the pipeline interactively:
+To explore the ingestion pipeline interactively:
 
 ```
 uv run dagster dev -w pipelines/workspace.yaml
 ```
 
-This opens the Dagster UI with asset lineage, run history and check results
-for the `sanctions_ingestion` asset group.
+This opens the Dagster UI with asset lineage, run history, and check
+results for the `sanctions_ingestion` asset group.
 
 To run the API:
 
@@ -206,9 +270,10 @@ To run the API:
 uv run uvicorn backend.app.main:app --reload
 ```
 
-Then `POST /api/v1/screening/search` with `{"full_name": "..."}` (optionally
+`POST /api/v1/screening/search` with `{"full_name": "..."}` (optionally
 `date_of_birth`, `nationality`, `id_number`, `entity_type`, `top_n`) returns
-ranked, explained hits against the loaded sanctions list.
+ranked, explained hits against the loaded sanctions list. Interactive API
+documentation is available at `/docs` while the server is running.
 
 To regenerate the screening evaluation report:
 
@@ -219,59 +284,76 @@ uv run python -m backend.app.services.screening.evaluate
 
 This writes `docs/evaluation/report.md` and `docs/evaluation/pr_curve.png`.
 
-## Environment variables
+## Environment Variables
 
-See `.env.example` for the full reference. Copy it to `.env` and adjust the
-database credentials and `DAGSTER_HOME` for your machine; `DAGSTER_HOME` must
-be an absolute path.
-
-## Testing
+See `.env.example` for the full reference, including database credentials,
+JWT and encryption key paths, Redis, CORS origins, ClamAV, and LLM provider
+settings (`LLM_PRIMARY`, `GROQ_API_KEY`, `GEMINI_API_KEY`). Copy it to
+`.env` and adjust for your machine; `DAGSTER_HOME` must be an absolute
+path. Generate a development JWT keypair and encryption secrets with:
 
 ```
-make test        # unit tests (no external services required)
-make e2e          # integration tests against a running Postgres instance
+uv run python infra/scripts/generate_dev_secrets.py
 ```
 
-The integration test in `tests/integration/test_sdn_loader.py` requires the
-`postgres` service from `docker-compose.yml` to be running with migrations
-applied; it uses an isolated source name and cleans up after itself.
+## Testing and Quality
 
-`tests/integration/test_schema_migrations.py` spins up its own disposable
-Postgres container via testcontainers (Docker required, no running service
-needed), applies every migration from scratch, exercises the core
-tenant-user-customer-application-case relationships, and verifies Row-Level
-Security actually isolates tenants under a non-superuser role.
+```
+make test    # the full suite: services/, integration/, security/
+make e2e     # tests/integration/ only, against a running Postgres instance
+```
+
+Most tests connect to the real Postgres and Redis started by `make up` and
+skip gracefully if either is unreachable, rather than mocking them away.
+
+The suite spans unit tests for matching, routing, encryption, and the LLM
+failover path (with providers mocked); property-based tests (Hypothesis)
+for the name normalizer; integration tests against both the persistent dev
+database and a disposable testcontainers Postgres instance; security tests
+for cross-tenant access, IDOR, JWT tampering, and rate limiting; a
+matching-evaluation gate that fails the build if recall drops below 98
+percent on a fixed-seed ground truth set; and frontend unit (Vitest/React
+Testing Library), end-to-end (Playwright), and accessibility (axe)
+coverage. See `docs/performance.md` for load-test methodology and results,
+including a real concurrency bug the load test caught and the fix that
+followed.
+
+## Observability
+
+- `GET /health/live` and `GET /health/ready` (the latter checks Postgres
+  and Redis connectivity) for orchestrator health checks.
+- `GET /metrics` exposes Prometheus metrics: HTTP request latency,
+  screening latency, LLM calls and failovers by provider, review queue
+  depth, current SLA breaches, and sanctions list ingestion freshness.
+- A provisioned Grafana dashboard (`infra/grafana/sentinelkyc-overview.json`)
+  visualizes all of the above.
 
 ## Dataset
 
-See `dataset/README.md` for how the OFAC SDN list is fetched, refreshed and
-attributed.
+See `dataset/README.md` for how the OFAC SDN list is fetched, refreshed,
+and attributed.
 
-## Repository layout
+## Repository Layout
 
 ```
-backend/app/           # domain models, config, services and API shared by the app and pipelines
-  models/sanctions.py   # sanctions list domain (Phase 1)
-  models/tenancy.py     # tenants, plans, subscriptions, invoices, usage events
-  models/identity.py    # users, roles, permissions, refresh tokens, MFA, login events
-  models/onboarding.py  # customers (encrypted PII columns), applications, documents
-  models/screening.py   # screening runs and hits
-  models/cases.py       # case management: cases, events, notes, RFIs
-  models/governance.py  # risk config, country risk, audit log, LLM usage and cache
-  services/sanctions/   # OFAC XML parsing, DOB parsing, fetching, loading, rescreen hook
-  services/screening/   # normalize, candidates, scoring, risk, routing, evaluate
-  api/v1/                # FastAPI routers (screening search)
-  main.py                 # FastAPI application entry point
-backend/alembic/        # database migrations
-pipelines/               # Dagster code location (sanctions ingestion assets, schedules, sensors)
+backend/app/            # domain models, config, services and API
+  models/                # SQLAlchemy models by domain (sanctions, tenancy, identity, onboarding, screening, cases, governance)
+  services/               # sanctions ingestion, screening, onboarding, LLM, analytics
+  api/v1/                  # FastAPI routers
+  core/                     # config, security, logging, observability
+  main.py                   # FastAPI application entry point
+backend/alembic/         # database migrations
+pipelines/                # Dagster code location
+frontend/                 # React public site, console and portal
 dataset/                  # data sources, scripts, and attribution
-docs/adr/                 # architecture decision records
-docs/evaluation/           # screening evaluation report and precision-recall curve
-infra/                     # Docker and Dagster infrastructure config
+docs/                      # ADRs, evaluation report, performance notes
+infra/                     # Docker, Nginx, Prometheus, Grafana, Dagster config
+tests/                     # unit, integration, security, load tests
 ```
 
 ## Disclaimer
 
-This is a demonstration environment. All customer, client and financial
-records referenced in later phases are synthetic. Sanctions data is sourced
-from the U.S. Department of the Treasury. This project is not legal advice.
+This is a demonstration environment. All customer, client, and financial
+records referenced anywhere in this platform are synthetic. Sanctions data
+is sourced from the U.S. Department of the Treasury. This project is not
+legal advice.

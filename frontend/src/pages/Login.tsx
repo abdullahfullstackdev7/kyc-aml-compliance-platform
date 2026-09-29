@@ -68,7 +68,7 @@ export default function Login() {
             immutable audit log the moment it succeeds or fails.
           </p>
         </div>
-        <p className="text-xs text-white/40">&copy; {new Date().getFullYear()} SentinelKYC</p>
+        <p className="text-xs text-white/70">&copy; {new Date().getFullYear()} SentinelKYC</p>
       </div>
 
       <div className="flex flex-col justify-center px-6 py-16 md:px-16">
@@ -87,7 +87,7 @@ export default function Login() {
           {step === "credentials" ? (
             <>
               <h1 className="text-2xl font-semibold text-navy dark:text-white">Sign in</h1>
-              <p className="mt-1 text-sm text-neutral-900/60 dark:text-white/60">
+              <p className="mt-1 text-sm text-neutral-900/70 dark:text-white/70">
                 Compliance console and applicant portal access.
               </p>
               <form className="mt-8 space-y-4" onSubmit={handleCredentialsSubmit}>
@@ -136,7 +136,7 @@ export default function Login() {
                   </Link>
                   <span
                     title="Available on Enterprise"
-                    className="cursor-not-allowed text-neutral-900/40 dark:text-white/40"
+                    className="cursor-not-allowed text-neutral-900/70 dark:text-white/70"
                   >
                     SSO
                   </span>
@@ -151,7 +151,7 @@ export default function Login() {
               <h1 className="text-2xl font-semibold text-navy dark:text-white">
                 Enter your MFA code
               </h1>
-              <p className="mt-1 flex items-start gap-2 text-sm text-neutral-900/60 dark:text-white/60">
+              <p className="mt-1 flex items-start gap-2 text-sm text-neutral-900/70 dark:text-white/70">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 Open your authenticator app and enter the 6-digit code for {email || "your account"}
                 .
@@ -172,7 +172,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setStep("credentials")}
-                  className="w-full text-center text-sm text-neutral-900/60 dark:text-white/60"
+                  className="w-full text-center text-sm text-neutral-900/70 dark:text-white/70"
                 >
                   Back
                 </button>

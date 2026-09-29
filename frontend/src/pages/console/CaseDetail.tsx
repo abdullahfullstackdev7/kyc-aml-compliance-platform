@@ -157,13 +157,13 @@ export default function CaseDetailPage() {
     );
   }
 
-  if (!caseData) return <div className="p-10 text-sm text-neutral-900/50">Loading...</div>;
+  if (!caseData) return <div className="p-10 text-sm text-neutral-900/70">Loading...</div>;
 
   return (
     <div className="p-6 md:p-10">
       <Link
         to="/app/cases"
-        className="inline-flex items-center gap-1 text-sm text-neutral-900/60 hover:text-navy dark:text-white/60"
+        className="inline-flex items-center gap-1 text-sm text-neutral-900/70 hover:text-navy dark:text-white/70"
       >
         <ArrowLeft className="h-4 w-4" /> Back to queue
       </Link>
@@ -172,7 +172,7 @@ export default function CaseDetailPage() {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold text-navy dark:text-white">Case #{caseData.id}</h1>
           <TierBadge tier={caseData.tier} />
-          <span className="text-sm text-neutral-900/60 dark:text-white/60">{caseData.state}</span>
+          <span className="text-sm text-neutral-900/70 dark:text-white/70">{caseData.state}</span>
           {caseData.sla_breached && (
             <span className="rounded-full bg-risk-red/10 px-2.5 py-0.5 text-xs font-medium text-risk-red">
               SLA breached
@@ -206,7 +206,7 @@ export default function CaseDetailPage() {
             <CardContent className="p-6">
               <h2 className="font-semibold text-navy dark:text-white">Screening hits</h2>
               {caseData.hits.length === 0 && (
-                <p className="mt-2 text-sm text-neutral-900/50 dark:text-white/50">
+                <p className="mt-2 text-sm text-neutral-900/70 dark:text-white/70">
                   No hits recorded for this case.
                 </p>
               )}
@@ -219,7 +219,7 @@ export default function CaseDetailPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="font-medium text-navy dark:text-white">{hit.matched_name}</p>
-                        <p className="text-xs text-neutral-900/50 dark:text-white/50">
+                        <p className="text-xs text-neutral-900/70 dark:text-white/70">
                           Entity #{hit.entity_uid} &middot; {scoreProgram(hit).join(", ") || "no programs listed"}
                         </p>
                       </div>
@@ -227,7 +227,7 @@ export default function CaseDetailPage() {
                         <div className="text-lg font-semibold text-navy dark:text-white">
                           {Math.round(hit.composite_score)}
                         </div>
-                        <div className="text-xs uppercase text-neutral-900/50 dark:text-white/50">
+                        <div className="text-xs uppercase text-neutral-900/70 dark:text-white/70">
                           {hit.disposition}
                         </div>
                       </div>
@@ -330,7 +330,7 @@ export default function CaseDetailPage() {
                 <Sparkles className="h-4 w-4 text-teal" /> Case summary
               </h2>
               {summaryLoading && (
-                <p className="mt-2 text-sm text-neutral-900/50 dark:text-white/50">Generating...</p>
+                <p className="mt-2 text-sm text-neutral-900/70 dark:text-white/70">Generating...</p>
               )}
               {summary && (
                 <div className="mt-3 space-y-3 text-sm">
@@ -342,13 +342,13 @@ export default function CaseDetailPage() {
                       ))}
                     </ul>
                   )}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-900/50 dark:text-white/50">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-900/70 dark:text-white/70">
                     <span className="rounded-full bg-teal/10 px-2 py-0.5 text-teal">
                       {summary.suggested_action}
                     </span>
                     <span>confidence: {summary.confidence}</span>
                   </div>
-                  {summary.source && <p className="text-xs italic text-neutral-900/40">{summary.source}</p>}
+                  {summary.source && <p className="text-xs italic text-neutral-900/70">{summary.source}</p>}
                 </div>
               )}
             </CardContent>

@@ -160,6 +160,9 @@ def screen_name(
     ]
 
     duration_ms = (time.perf_counter() - start) * 1000
+    from backend.app.core.observability import SCREENING_LATENCY_SECONDS
+
+    SCREENING_LATENCY_SECONDS.observe(duration_ms / 1000)
     return ScreeningResult(
         query_full_name=query.full_name,
         query_normalized=normalized.normalized,

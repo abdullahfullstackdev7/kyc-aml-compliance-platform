@@ -86,10 +86,10 @@ export default function Home() {
 
       <section className="border-b border-black/5 py-8 dark:border-white/10">
         <div className="container">
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-neutral-900/50 dark:text-white/50">
+          <p className="text-center text-xs font-medium uppercase tracking-wide text-neutral-900/70 dark:text-white/70">
             Trusted by compliance teams at
           </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm font-semibold text-neutral-900/40 dark:text-white/40">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm font-semibold text-neutral-900/70 dark:text-white/70">
             {TRUST_BAR.map((name) => (
               <span key={name}>{name}</span>
             ))}
@@ -102,7 +102,7 @@ export default function Home() {
           {STATS.map((stat) => (
             <div key={stat.label} className="text-center sm:text-left">
               <div className="text-3xl font-semibold">{stat.value}</div>
-              <div className="mt-1 text-sm text-white/60">{stat.label}</div>
+              <div className="mt-1 text-sm text-white/70">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -198,7 +198,7 @@ export default function Home() {
               <Card>
                 <CardContent className="p-8">
                   <p className="text-lg text-navy dark:text-white">&ldquo;{t.quote}&rdquo;</p>
-                  <p className="mt-4 text-sm text-neutral-900/50 dark:text-white/50">
+                  <p className="mt-4 text-sm text-neutral-900/70 dark:text-white/70">
                     {t.name} &mdash; illustrative, not an actual customer
                   </p>
                 </CardContent>

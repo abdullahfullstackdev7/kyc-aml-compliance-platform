@@ -1,0 +1,47 @@
+# Production image for the FastAPI API (PROJECT_PLAN.md Phase 11.2):
+# non-root user, no build toolchain in the final layer.
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libxml2-dev \
+    libxslt1-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY pyproject.toml uv.lock* ./
+COPY backend ./backend
+RUN pip install --no-cache-dir --target=/deps -e .
+
+FROM python:3.12-slim
+
+# Native libraries the app actually loads at runtime: libmagic (MIME
+# sniffing), tesseract-ocr (document OCR), and WeasyPrint's rendering
+# stack (Pango/Cairo/GDK-PixBuf) for PDF case export - see
+# backend/app/services/onboarding/{documents,export}.py, both of which
+# degrade to a warning rather than crash if one of these is somehow still
+# missing (see ExportUnavailableError and the OCR try/except).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    tesseract-ocr \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 app \
+    && useradd --uid 1000 --gid app --no-create-home --shell /usr/sbin/nologin app
+
+WORKDIR /app
+COPY --from=builder /deps /usr/local/lib/python3.12/site-packages
+COPY backend ./backend
+COPY pyproject.toml ./
+
+RUN mkdir -p /app/tmp && chown -R app:app /app
+USER app
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=3)" || exit 1
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
