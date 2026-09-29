@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -92,9 +92,9 @@ def test_tenant_user_customer_application_case_chain(session):
     session.add(tenant)
     session.flush()
 
-    role = Role(code="compliance_analyst", name="Compliance Analyst")
-    session.add(role)
-    session.flush()
+    # Migration 0004 seeds the real RBAC roles; assert it exists rather than
+    # inserting a duplicate "compliance_analyst".
+    assert session.execute(select(Role).where(Role.code == "compliance_analyst")).scalar_one()
 
     user = User(
         tenant_id=tenant.id,

@@ -10,7 +10,17 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,6 +68,31 @@ class AuditLog(Base):
     hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DataEncryptionKey(Base):
+    """Per-tenant, per-version data encryption key (DEK) for field-level PII
+    encryption. The DEK itself is stored only in its AES-256-GCM-wrapped form,
+    encrypted by the environment-configured master key; see
+    backend/app/core/security/encryption.py.
+    """
+
+    __tablename__ = "data_encryption_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    encrypted_dek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "key_version", name="uq_data_encryption_keys_tenant_version"),
     )
 
 

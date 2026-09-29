@@ -107,6 +107,12 @@ def _strip_accents_and_transliterate(text: str) -> str:
 
 
 def _strip_punctuation(text: str) -> str:
+    # Periods are dropped rather than turned into a space first, so dotted
+    # abbreviations collapse into one token ("S.A." -> "SA", "L.L.C" -> "LLC")
+    # and are recognized by the legal-suffix and honorific maps below. Doing
+    # this after the general punctuation-to-space pass would instead leave
+    # them as separate single-letter tokens that never match anything.
+    text = text.replace(".", "")
     text = _PUNCTUATION_RE.sub(" ", text)
     return _WHITESPACE_RE.sub(" ", text).strip()
 

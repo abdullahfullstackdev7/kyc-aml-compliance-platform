@@ -11,6 +11,7 @@ __pycache__/
 .env
 git_verify.md
 PROJECT_PLAN.md
+infra/keys/
 
 # Dagster
 .dagster_home/

@@ -7,6 +7,8 @@ dependencies = [
     "dagster>=1.8.0",
     "dagster-webserver>=1.8.0",
     "dagster-postgres>=0.24.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
     "httpx>=0.27.0",
     "lxml>=5.2.0",
     "xmlschema>=3.3.0",
@@ -15,7 +17,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.9",
     "alembic>=1.13.0",
-    "pydantic>=2.7.0",
+    "pydantic[email]>=2.7.0",
     "pydantic-settings>=2.3.0",
     "sentence-transformers>=3.0.0",
     "scikit-learn>=1.5.0",
@@ -27,6 +29,21 @@ dependencies = [
     "structlog>=24.1.0",
     "pyarrow>=17.0.0",
     "pandas>=2.2.0",
+    "faker>=28.0.0",
+    "argon2-cffi>=23.1.0",
+    "pyjwt[crypto]>=2.9.0",
+    "pyotp>=2.9.0",
+    "cryptography>=43.0.0",
+    "slowapi>=0.1.9",
+    "redis>=5.0.8",
+    "opencv-python-headless>=4.10.0,<5",
+    "pytesseract>=0.3.13",
+    "mrz>=0.6.2",
+    "Pillow>=10.4.0",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
+    "python-magic>=0.4.27; sys_platform != 'win32'",
+    "weasyprint>=62.3",
+    "python-multipart>=0.0.12",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +53,7 @@ dev = [
     "testcontainers[postgres]>=4.7.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
+    "matplotlib>=3.9.0",
 ]
 
 [build-system]
@@ -51,6 +69,13 @@ module_name = "sentinelkyc_pipelines"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's dependency injection idiom is `Depends(...)` as an argument
+# default; that is not the mutable-default-argument bug B008 flags.
+"backend/app/api/**" = ["B008"]
+"backend/app/core/security/permissions.py" = ["B008"]
+"tests/security/**" = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "backend/tests"]

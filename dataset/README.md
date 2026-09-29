@@ -31,15 +31,32 @@ as the `ofac_sdn_raw` asset and writes the file to `raw/ofac/sdn/`.
 dataset/
 ├── README.md
 ├── ATTRIBUTION.md
-├── raw/ofac/sdn/          # every fetched SDN.XML version, named YYYY-MM-DD_<sha8>.xml
-├── processed/              # normalized Parquet output (sdn_entities.parquet, sdn_names.parquet)
+├── raw/ofac/sdn/                  # every fetched SDN.XML version, named YYYY-MM-DD_<sha8>.xml
+├── processed/                      # normalized Parquet output (sdn_entities.parquet, sdn_names.parquet)
+├── synthetic/
+│   └── ground_truth_matches.csv    # labelled pairs for the screening evaluation harness only
 └── scripts/
-    ├── download_ofac.py    # manual fetch outside of the Dagster schedule
-    └── load_all.py         # applies migrations and reports pipeline status
+    ├── download_ofac.py            # manual fetch outside of the Dagster schedule
+    ├── generate_ground_truth.py    # builds ground_truth_matches.csv from real SDN entries
+    └── load_all.py                 # applies migrations and reports pipeline status
 ```
 
 `raw/`, `processed/`, `synthetic/` and `documents/` are gitignored; only scripts,
 reference CSVs and this documentation are committed.
+
+## Screening evaluation ground truth
+
+`ground_truth_matches.csv` is generated, not hand-written: true matches are
+real SDN individuals with a realistic perturbation (transliteration variant,
+token reorder, dropped middle name, typo, or an added honorific), hard
+negatives are real SDN names paired with a conflicting date of birth, and
+clean queries are Faker names unrelated to any SDN entry. Labels are read
+only by `backend/app/services/screening/evaluate.py`; they are never loaded
+into the operational `customers` or `screening_hits` tables.
+
+```
+uv run python dataset/scripts/generate_ground_truth.py
+```
 
 ## Loading the database
 

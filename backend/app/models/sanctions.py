@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -208,3 +209,18 @@ class SanctionsChange(Base):
     version: Mapped[SanctionsListVersion] = relationship(back_populates="changes")
 
     __table_args__ = (Index("ix_sanctions_changes_version_type", "version_id", "change_type"),)
+
+
+class SanctionsTokenStats(Base):
+    """Document-frequency-based IDF per name token, recomputed at ingest.
+
+    Used by candidate blocking and scoring (PROJECT_PLAN.md Phase 3.2/3.3) to
+    weight rare tokens (surnames, transliterated names) higher than common ones
+    (honorific remnants, single-letter initials, frequent given names).
+    """
+
+    __tablename__ = "sanctions_token_stats"
+
+    token: Mapped[str] = mapped_column(Text, primary_key=True)
+    document_frequency: Mapped[int] = mapped_column(Integer, nullable=False)
+    idf: Mapped[float] = mapped_column(Float, nullable=False)

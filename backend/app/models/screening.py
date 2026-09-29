@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +42,9 @@ class ScreeningHit(Base):
     composite_score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     scores: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     disposition: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
+    disposition_reason: Mapped[str | None] = mapped_column(Text)
+    disposition_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    disposition_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -6,10 +6,43 @@ and phase-by-phase build plan.
 
 ## Current status
 
-This repository currently implements **Phase 1: Sanctions Data ETL Pipeline**
-and **Phase 2: Database Schema and Data Layer**, plus the minimum Phase 0
-foundations needed to run them (monorepo layout, dependency management,
-Docker Compose for Postgres, Alembic migrations).
+This repository currently implements **Phase 1: Sanctions Data ETL Pipeline**,
+**Phase 2: Database Schema and Data Layer**, **Phase 3: Screening Engine**,
+**Phase 4: Authentication, Authorization and Data Security**, and
+**Phase 5: Onboarding Workflow, Document Verification and Case Management**,
+plus the minimum Phase 0 foundations needed to run them.
+
+Phase 5 additions: an applicant-facing state machine
+(`backend/app/services/onboarding/state_machine.py`) with guarded
+transitions, every one of which writes a `case_events` row and an audit
+event; a synchronous document verification pipeline (MIME/size, blur and
+glare via OpenCV, Haar-cascade face presence, Tesseract OCR, ICAO 9303 MRZ
+parsing and checksum validation, and cross-referencing the MRZ against the
+applicant's stated name/DOB/nationality); automatic screening and risk-tiered
+routing into a case on `DOCS_VERIFIED`; case management (queue assignment,
+SLA tracking, hit disposition, bulk-clear, four-eyes decisions, RFIs, notes,
+PDF export); continuous rescreening when the sanctions list changes; and
+REST endpoints under `/api/v1/portal/*`, `/api/v1/cases/*` and
+`/api/v1/lists/*`. Fixing this phase's onboarding flow also surfaced and
+fixed a real bug in Phase 4's audit chain: `audit_log`'s per-tenant Row-Level
+Security silently broke the assumption that the hash chain was one global
+sequence, so the chain is now verified and linked per tenant (see
+`backend/app/core/security/audit.py`).
+
+Phase 4 additions: Argon2id password hashing with a policy check against a
+bundled common-password list; RS256 JWT access tokens; opaque refresh tokens
+with rotation and reuse detection (a reused token revokes its whole family);
+mandatory TOTP MFA for staff roles with hashed recovery codes; account
+lockout with exponential backoff; RBAC seeded from the roles/permissions
+tables plus ABAC helpers (same-tenant, four-eyes, case-assignment); AES-256-
+GCM envelope encryption with per-tenant, versioned data keys; HMAC blind
+indexes for exact lookups on encrypted columns; an append-only, hash-chained
+audit log (a database trigger blocks UPDATE/DELETE even for a superuser);
+strict security headers; PII-masking structured logging; Redis-backed rate
+limiting; and a dedicated, non-superuser, RLS-respecting database role that
+the running API connects as instead of the migration owner. Auth endpoints
+are live under `/api/v1/auth/*`. See `docs/adr/0005-restricted-application-
+database-role.md` for three real bugs this last change surfaced and fixed.
 
 Implemented:
 
@@ -36,12 +69,23 @@ Implemented:
 - Multi-tenancy: every tenant-owned table carries `tenant_id` and has
   PostgreSQL Row-Level Security enabled and forced, keyed on
   `current_setting('app.tenant_id')`.
+- The screening engine: candidate blocking via three retrievers (GIN token
+  overlap ranked by IDF, `pg_trgm` trigram similarity, HNSW vector nearest
+  neighbor) plus a phonetic filter for short names; composite scoring
+  (rapidfuzz token_set/token_sort/Jaro-Winkler blended with embedding cosine
+  similarity, rare-token and secondary-attribute adjustments, a weak-AKA
+  score cap); an independent customer risk score (country, occupation,
+  transaction volume, entity opacity, document check outcome); and
+  risk-tiered routing (Clear / Review / High Risk / Reject) with SLA and
+  dual-approval rules. Exposed at `POST /api/v1/screening/search`.
+- An evaluation harness (`backend/app/services/screening/evaluate.py`)
+  measuring recall, precision, F1 and false positive rate per score
+  threshold against a labelled ground truth set, with a precision-recall
+  curve and a hybrid-vs-baseline comparison; see `docs/evaluation/report.md`.
 
-Not yet implemented (see PROJECT_PLAN.md for scope): the screening/matching
-engine (Phase 3), authentication and authorization logic and field-level PII
-encryption (Phase 4), the onboarding workflow and case management logic
-(Phase 5), LLM-assisted case summaries (Phase 6), the public website and
-compliance console (Phases 7-8), and the analytics dashboards (Phase 9).
+Not yet implemented (see PROJECT_PLAN.md for scope): LLM-assisted case
+summaries (Phase 6), the public website and compliance console
+(Phases 7-8), and the analytics dashboards (Phase 9).
 
 ## Prerequisites
 
@@ -66,6 +110,25 @@ uv run dagster dev -w pipelines/workspace.yaml
 
 This opens the Dagster UI with asset lineage, run history and check results
 for the `sanctions_ingestion` asset group.
+
+To run the API:
+
+```
+uv run uvicorn backend.app.main:app --reload
+```
+
+Then `POST /api/v1/screening/search` with `{"full_name": "..."}` (optionally
+`date_of_birth`, `nationality`, `id_number`, `entity_type`, `top_n`) returns
+ranked, explained hits against the loaded sanctions list.
+
+To regenerate the screening evaluation report:
+
+```
+uv run python dataset/scripts/generate_ground_truth.py
+uv run python -m backend.app.services.screening.evaluate
+```
+
+This writes `docs/evaluation/report.md` and `docs/evaluation/pr_curve.png`.
 
 ## Environment variables
 
@@ -98,21 +161,24 @@ attributed.
 ## Repository layout
 
 ```
-backend/app/          # domain models, config, and services shared by the API and pipelines
-  models/sanctions.py  # sanctions list domain (Phase 1)
-  models/tenancy.py    # tenants, plans, subscriptions, invoices, usage events
-  models/identity.py   # users, roles, permissions, refresh tokens, MFA, login events
-  models/onboarding.py # customers (encrypted PII columns), applications, documents
-  models/screening.py  # screening runs and hits
-  models/cases.py      # case management: cases, events, notes, RFIs
-  models/governance.py # risk config, country risk, audit log, LLM usage and cache
-  services/sanctions/  # OFAC XML parsing, DOB parsing, fetching, loading, rescreen hook
-  services/screening/  # name normalization shared by list ingestion and future matching
-backend/alembic/       # database migrations
-pipelines/              # Dagster code location (sanctions ingestion assets, schedules, sensors)
-dataset/                 # data sources, scripts, and attribution
-docs/adr/                # architecture decision records
-infra/                    # Docker and Dagster infrastructure config
+backend/app/           # domain models, config, services and API shared by the app and pipelines
+  models/sanctions.py   # sanctions list domain (Phase 1)
+  models/tenancy.py     # tenants, plans, subscriptions, invoices, usage events
+  models/identity.py    # users, roles, permissions, refresh tokens, MFA, login events
+  models/onboarding.py  # customers (encrypted PII columns), applications, documents
+  models/screening.py   # screening runs and hits
+  models/cases.py       # case management: cases, events, notes, RFIs
+  models/governance.py  # risk config, country risk, audit log, LLM usage and cache
+  services/sanctions/   # OFAC XML parsing, DOB parsing, fetching, loading, rescreen hook
+  services/screening/   # normalize, candidates, scoring, risk, routing, evaluate
+  api/v1/                # FastAPI routers (screening search)
+  main.py                 # FastAPI application entry point
+backend/alembic/        # database migrations
+pipelines/               # Dagster code location (sanctions ingestion assets, schedules, sensors)
+dataset/                  # data sources, scripts, and attribution
+docs/adr/                 # architecture decision records
+docs/evaluation/           # screening evaluation report and precision-recall curve
+infra/                     # Docker and Dagster infrastructure config
 ```
 
 ## Disclaimer

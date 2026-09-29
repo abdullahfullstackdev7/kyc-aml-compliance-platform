@@ -43,6 +43,33 @@ class Settings(BaseSettings):
     dataset_raw_dir: str = "dataset/raw"
     dataset_processed_dir: str = "dataset/processed"
 
+    jwt_private_key_path: str = ""
+    jwt_public_key_path: str = ""
+    jwt_access_token_minutes: int = 15
+    jwt_issuer: str = "sentinelkyc"
+
+    refresh_token_days: int = 7
+
+    encryption_master_key: str = ""
+    encryption_key_version: int = 1
+    blind_index_key: str = ""
+
+    totp_issuer: str = "SentinelKYC"
+
+    login_lockout_threshold: int = 5
+    login_lockout_base_seconds: int = 30
+
+    rate_limit_login: str = "5/minute"
+    rate_limit_api: str = "300/minute"
+
+    # Restricted role the running application (not migrations, not the
+    # Dagster pipelines) connects as: no superuser, RLS not bypassed,
+    # INSERT/SELECT only on audit_log. See migration 0004 and Phase 4.4.
+    app_db_user: str = "sentinelkyc_app"
+    app_db_password: str = ""
+    app_database_url: str = ""
+    app_database_url_sync: str = ""
+
     def sync_database_url(self) -> str:
         if self.database_url_sync:
             return self.database_url_sync
@@ -56,6 +83,14 @@ class Settings(BaseSettings):
             return self.database_url
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    def app_sync_database_url(self) -> str:
+        if self.app_database_url_sync:
+            return self.app_database_url_sync
+        return (
+            f"postgresql+psycopg2://{self.app_db_user}:{self.app_db_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 

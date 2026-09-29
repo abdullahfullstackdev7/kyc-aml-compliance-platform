@@ -26,6 +26,7 @@ class Customer(Base):
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     customer_type: Mapped[str] = mapped_column(String(16), nullable=False)  # individual | entity
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     full_name_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     full_name_blind_index: Mapped[str] = mapped_column(String(64), nullable=False)
