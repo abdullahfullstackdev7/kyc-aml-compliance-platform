@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    # Vite dev server origins for the console/portal frontend (Phase 8).
+    cors_allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
     ofac_sdn_url: str = (
         "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML"
     )

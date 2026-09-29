@@ -1,4 +1,5 @@
-import { Routes, Route, useParams } from "react-router-dom";
+import { Suspense, lazy } from "react";
+import { Routes, Route, useParams, Navigate } from "react-router-dom";
 import { PageLayout } from "@/components/layout/PageLayout";
 import Home from "@/pages/Home";
 import Solutions from "@/pages/Solutions";
@@ -8,6 +9,14 @@ import Login from "@/pages/Login";
 import ForgotPassword from "@/pages/ForgotPassword";
 import LegalStub from "@/pages/LegalStub";
 import NotFound from "@/pages/NotFound";
+import { ProtectedRoute } from "@/pages/console/ProtectedRoute";
+import { ConsoleLayout } from "@/pages/console/ConsoleLayout";
+import ReviewQueue from "@/pages/console/ReviewQueue";
+import CaseDetailPage from "@/pages/console/CaseDetail";
+
+// The ECharts core pulled in by Analytics is the heaviest single dependency
+// in the app; code-splitting it keeps that weight off every other route.
+const Analytics = lazy(() => import("@/pages/console/Analytics"));
 
 function LegalRoute() {
   const { slug = "" } = useParams();
@@ -19,6 +28,40 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      <Route path="/app" element={<Navigate to="/app/cases" replace />} />
+      <Route
+        path="/app/cases"
+        element={
+          <ProtectedRoute>
+            <ConsoleLayout>
+              <ReviewQueue />
+            </ConsoleLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/cases/:id"
+        element={
+          <ProtectedRoute>
+            <ConsoleLayout>
+              <CaseDetailPage />
+            </ConsoleLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/analytics"
+        element={
+          <ProtectedRoute>
+            <ConsoleLayout>
+              <Suspense fallback={<div className="p-10 text-sm text-neutral-900/50">Loading...</div>}>
+                <Analytics />
+              </Suspense>
+            </ConsoleLayout>
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/"

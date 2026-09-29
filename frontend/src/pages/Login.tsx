@@ -1,21 +1,57 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { ShieldCheck, Info } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ShieldCheck, Info, AlertCircle } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
 import { Button } from "@/components/ui/button";
+import { useAuth, isApiError } from "@/lib/auth";
 
 type Step = "credentials" | "mfa";
 
 export default function Login() {
+  const { login, verifyMfa } = useAuth();
+  const navigate = useNavigate();
+
   const [step, setStep] = useState<Step>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tenantId, setTenantId] = useState("1");
+  const [mfaUserId, setMfaUserId] = useState<number | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  function handleCredentialsSubmit(e: FormEvent) {
+  async function handleCredentialsSubmit(e: FormEvent) {
     e.preventDefault();
-    // Wired to POST /api/v1/auth/login by the console app (Phase 8); this
-    // marketing-site login screen only demonstrates the flow shape.
-    setStep("mfa");
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await login(email, password, Number(tenantId));
+      if (result.status === "mfa_required") {
+        setMfaUserId(result.user_id);
+        setStep("mfa");
+      } else {
+        navigate("/app");
+      }
+    } catch (err) {
+      setError(isApiError(err) ? err.message : "Sign in failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMfaSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (mfaUserId === null) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await verifyMfa(mfaUserId, code, Number(tenantId));
+      navigate("/app");
+    } catch (err) {
+      setError(isApiError(err) ? err.message : "Invalid code. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -41,6 +77,13 @@ export default function Login() {
             <Logo className="text-navy" />
           </div>
 
+          {error && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-risk-red/30 bg-risk-red/10 p-3 text-sm text-risk-red">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
           {step === "credentials" ? (
             <>
               <h1 className="text-2xl font-semibold text-navy dark:text-white">Sign in</h1>
@@ -48,6 +91,19 @@ export default function Login() {
                 Compliance console and applicant portal access.
               </p>
               <form className="mt-8 space-y-4" onSubmit={handleCredentialsSubmit}>
+                <div>
+                  <label htmlFor="tenantId" className="text-sm font-medium">
+                    Tenant ID
+                  </label>
+                  <input
+                    id="tenantId"
+                    type="number"
+                    required
+                    value={tenantId}
+                    onChange={(e) => setTenantId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-teal focus:ring-1 focus:ring-teal dark:border-white/20 dark:bg-transparent"
+                  />
+                </div>
                 <div>
                   <label htmlFor="email" className="text-sm font-medium">
                     Email
@@ -85,8 +141,8 @@ export default function Login() {
                     SSO
                   </span>
                 </div>
-                <Button type="submit" className="w-full">
-                  Continue
+                <Button type="submit" className="w-full" disabled={busy}>
+                  {busy ? "Signing in..." : "Continue"}
                 </Button>
               </form>
             </>
@@ -100,21 +156,18 @@ export default function Login() {
                 Open your authenticator app and enter the 6-digit code for {email || "your account"}
                 .
               </p>
-              <form
-                className="mt-8 space-y-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                }}
-              >
+              <form className="mt-8 space-y-4" onSubmit={handleMfaSubmit}>
                 <input
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={6}
                   placeholder="000000"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-center text-lg tracking-[0.5em] outline-none focus:border-teal focus:ring-1 focus:ring-teal dark:border-white/20 dark:bg-transparent"
                 />
-                <Button type="submit" className="w-full">
-                  Verify and sign in
+                <Button type="submit" className="w-full" disabled={busy}>
+                  {busy ? "Verifying..." : "Verify and sign in"}
                 </Button>
                 <button
                   type="button"

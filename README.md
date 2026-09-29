@@ -10,9 +10,52 @@ This repository currently implements **Phase 1: Sanctions Data ETL Pipeline**,
 **Phase 2: Database Schema and Data Layer**, **Phase 3: Screening Engine**,
 **Phase 4: Authentication, Authorization and Data Security**,
 **Phase 5: Onboarding Workflow, Document Verification and Case Management**,
-**Phase 6: LLM Integration Layer with Minimum Token Usage**, and a scoped
-build of **Phase 7: Public Corporate Website**, plus the minimum Phase 0
-foundations needed to run them.
+**Phase 6: LLM Integration Layer with Minimum Token Usage**, a scoped build
+of **Phase 7: Public Corporate Website**, a scoped build of **Phase 8:
+Compliance Console and Applicant Portal**, and a scoped build of **Phase 9:
+Revenue and Analytics Dashboard**, plus the minimum Phase 0 foundations
+needed to run them.
+
+Phase 9 (`backend/app/services/analytics/`, `frontend/src/pages/console/
+Analytics.tsx`): an Operations/Compliance analytics view only - the Revenue
+dashboard (PROJECT_PLAN.md 9.3) needs 24 months of fabricated subscription
+and invoice history that doesn't exist in this build, so it was scoped out
+in favor of metrics computed from data the system already produces. Five
+pre-aggregated endpoints under `/api/v1/analytics/*`
+(`funnel`/`routing`/`screening-volume`/`sla`/`llm-usage`, gated by the
+existing `analytics:view_tenant` permission) back five ECharts widgets on a
+new `/app/analytics` console page: an applications funnel read from the
+audit trail (submitted -> docs verified -> screened -> decided, since an
+RFI can send an application back to SUBMITTED so *current* state alone
+would undercount), daily screening volume, case-tier routing distribution
+(a bar chart standing in for the full Sankey in 9.4), SLA compliance
+(mirrors `case_service.sla_breached()`'s exact rule), and LLM usage by
+provider/outcome with a cache-hit-rate figure (Phase 6's `llm_calls` table).
+ECharts is imported via its tree-shakeable core (not the full bundle) and
+the whole Analytics page is route-level code-split, so the ~530 kB chart
+library is only downloaded by someone who opens that page. All five
+endpoints were smoke-tested against the real Postgres-backed API. Out of
+scope for this build: the Revenue dashboard entirely (9.3), the Sankey/
+choropleth/cohort-heatmap/box-plot chart types, and global filters/date-
+range comparison (9.2).
+
+Phase 8 (`frontend/src/pages/console/`, `lib/api.ts`, `lib/auth.tsx`): the
+console shell (sidebar/topbar layout, protected routes) and the reviewer's
+core workflow, wired to the real backend rather than mock data - the
+existing `/login` page now calls `POST /api/v1/auth/login` for real
+(including the MFA step), a Review Queue lists and filters
+`GET /api/v1/cases` by tier with pagination, and a Case Detail page covers
+assignment, per-hit disposition, the decision panel (with a "Draft
+rationale" button hitting the Phase 6 LLM endpoint), RFI, notes, PDF export,
+and a lazily-loaded case summary card. No TanStack Query/Table - a lean,
+hand-rolled fetch client instead. `CORSMiddleware` was added to the FastAPI
+app (`backend/app/main.py`) so the Vite dev server can call the API; the
+full login-with-MFA-through-case-list flow was smoke-tested against the
+real Postgres-backed API rather than left unverified. Out of scope for this
+build (see PROJECT_PLAN.md 8.1-8.5): Administration, Sanctions Lists,
+Rescreening, ad-hoc/CSV Screening and Audit Log console pages, the
+document viewer with OCR overlay and side-by-side hit comparison, bulk
+hit-clearing UI, and the applicant self-service portal wizard (`/onboard`).
 
 Phase 7 (`frontend/`, React 18 + Vite + TypeScript + Tailwind + shadcn/ui-
 style primitives + React Router + Framer Motion): the design system
@@ -125,8 +168,11 @@ Implemented:
 
 Not yet implemented (see PROJECT_PLAN.md for scope): the rest of the public
 website's page catalog and imagery pipeline (remainder of Phase 7), the
-compliance console and applicant portal UI (Phase 8), and the analytics
-dashboards (Phase 9).
+rest of the compliance console and the applicant portal wizard UI
+(remainder of Phase 8), and the Revenue dashboard plus the richer Phase 9.4
+chart types and global filters (remainder of Phase 9). Phase 10 (Testing
+and Quality Assurance) and Phase 11 (Observability, Deployment and
+Documentation) have not been started.
 
 ## Prerequisites
 
