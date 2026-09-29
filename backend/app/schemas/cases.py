@@ -66,3 +66,15 @@ class NoteCreateRequest(BaseModel):
 
 class BulkClearRequest(BaseModel):
     threshold: float = Field(..., ge=0, le=100)
+
+
+class DecisionRationaleDraftRequest(BaseModel):
+    proposed_decision: Literal["approve", "reject", "clear"]
+
+
+class LlmDraftResponse(BaseModel):
+    summary: str
+    key_factors: list[str]
+    suggested_action: str
+    confidence: str
+    source: str | None = None

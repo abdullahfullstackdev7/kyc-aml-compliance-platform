@@ -7,15 +7,18 @@ from sqlalchemy.orm import Session
 from backend.app.api.deps import get_tenant_scoped_db
 from backend.app.core.security.permissions import AuthorizationError, Principal, require_permission
 from backend.app.models.cases import Case, CaseEvent, CaseNote
+from backend.app.models.onboarding import Customer
 from backend.app.models.screening import ScreeningHit
 from backend.app.schemas.cases import (
     AssignRequest,
     BulkClearRequest,
     CaseDetail,
     CaseSummary,
+    DecisionRationaleDraftRequest,
     DecisionRequest,
     DispositionRequest,
     HitResponse,
+    LlmDraftResponse,
     NoteCreateRequest,
     RfiCreateRequest,
 )
@@ -300,16 +303,15 @@ def add_case_note(
     return {"id": note.id}
 
 
-@router.get("/{case_id}/summary")
-def case_summary(
-    case_id: int,
-    principal: Principal = Depends(require_permission("cases:read")),
-    db: Session = Depends(get_tenant_scoped_db),
-) -> dict:
-    """Lazy LLM case summary (Phase 6). Not yet wired to a provider; returns
-    the deterministic template fallback the plan specifies for when no LLM
-    provider is available, so the endpoint is usable ahead of Phase 6."""
-    case = _get_case(db, case_id)
+def _case_llm_payload(db: Session, case: Case) -> dict:
+    from backend.app.core.security.encryption import decrypt_pii
+    from backend.app.services.llm.pseudonymize import build_case_payload
+
+    customer = db.execute(select(Customer).where(Customer.id == case.customer_id)).scalar_one()
+    full_name = decrypt_pii(db, case.tenant_id, customer.full_name_encrypted)
+    dob_iso = (
+        decrypt_pii(db, case.tenant_id, customer.dob_encrypted) if customer.dob_encrypted else None
+    )
     hits = (
         db.execute(
             select(ScreeningHit).where(ScreeningHit.screening_run_id == case.screening_run_id)
@@ -317,17 +319,42 @@ def case_summary(
         .scalars()
         .all()
     )
-    top = max(hits, key=lambda h: h.composite_score, default=None)
-    summary = (
-        f"Case {case.id}, tier {case.tier}. Top match: {top.matched_name} (score {top.composite_score})."
-        if top
-        else f"Case {case.id}, tier {case.tier}. No screening hits recorded."
-    )
-    return {
-        "summary": summary,
-        "confidence": "low",
-        "source": "Automated summary (assistant unavailable)",
-    }
+    return build_case_payload(db, case, list(hits), customer, full_name, dob_iso)
+
+
+@router.get("/{case_id}/summary", response_model=LlmDraftResponse)
+def case_summary(
+    case_id: int,
+    principal: Principal = Depends(require_permission("cases:read")),
+    db: Session = Depends(get_tenant_scoped_db),
+) -> LlmDraftResponse:
+    """Lazy LLM case summary (Phase 6.1): generated the first time a reviewer
+    opens a Review or High Risk case, cached thereafter by payload hash."""
+    from backend.app.services.llm.service import generate_case_summary
+
+    case = _get_case(db, case_id)
+    payload = _case_llm_payload(db, case)
+    response = generate_case_summary(db, case, payload)
+    db.commit()
+    return LlmDraftResponse(**response)
+
+
+@router.post("/{case_id}/decision-rationale-draft", response_model=LlmDraftResponse)
+def decision_rationale_draft(
+    case_id: int,
+    body: DecisionRationaleDraftRequest,
+    principal: Principal = Depends(require_permission("cases:read")),
+    db: Session = Depends(get_tenant_scoped_db),
+) -> LlmDraftResponse:
+    """Lazy LLM decision rationale draft (Phase 6.1): generated only when a
+    reviewer clicks "Draft rationale" before submitting a decision."""
+    from backend.app.services.llm.service import generate_decision_rationale_draft
+
+    case = _get_case(db, case_id)
+    payload = _case_llm_payload(db, case)
+    response = generate_decision_rationale_draft(db, case, payload, body.proposed_decision)
+    db.commit()
+    return LlmDraftResponse(**response)
 
 
 @router.get("/{case_id}/export")

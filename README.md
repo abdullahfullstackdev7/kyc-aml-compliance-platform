@@ -8,9 +8,49 @@ and phase-by-phase build plan.
 
 This repository currently implements **Phase 1: Sanctions Data ETL Pipeline**,
 **Phase 2: Database Schema and Data Layer**, **Phase 3: Screening Engine**,
-**Phase 4: Authentication, Authorization and Data Security**, and
+**Phase 4: Authentication, Authorization and Data Security**,
 **Phase 5: Onboarding Workflow, Document Verification and Case Management**,
-plus the minimum Phase 0 foundations needed to run them.
+**Phase 6: LLM Integration Layer with Minimum Token Usage**, and a scoped
+build of **Phase 7: Public Corporate Website**, plus the minimum Phase 0
+foundations needed to run them.
+
+Phase 7 (`frontend/`, React 18 + Vite + TypeScript + Tailwind + shadcn/ui-
+style primitives + React Router + Framer Motion): the design system
+(palette, type scale, `Button`/`Card`/`Badge`/`Accordion` primitives, light/
+dark theming) and global layout (sticky header with mega-menu-lite nav,
+footer, cookie consent banner) from PROJECT_PLAN.md 7.1-7.2, plus a working
+subset of the page catalog in 7.3 chosen to demonstrate the design system
+end to end rather than the full ~15-page catalog: Home (hero, trust bar,
+live-stats band, pillars, workflow diagram, security section, testimonials,
+CTA), Solutions (all four solution areas plus an FAQ accordion), Trust
+Center, the split-panel Login flow with an MFA step, Contact, and legal/
+404/forgot-password stubs so no nav link 404s. Out of scope for this build
+(see PROJECT_PLAN.md 7.3-7.5 for the full spec): the Platform/Industries/
+Resources/Company page groups, the 6 long-form Insights articles, the
+downloaded-and-converted Unsplash/Pexels imagery pipeline (placeholder
+gradient panels stand in for photography/screenshots), and Lighthouse/
+Playwright visual regression tooling. `npm run build` and `npx tsc -b`
+both pass cleanly.
+
+Phase 6 additions (`backend/app/services/llm/`): the LLM never screens,
+approves or rejects - it is only called lazily, to draft a case summary the
+first time a reviewer opens a Review/High Risk case, or a decision rationale
+when a reviewer clicks "Draft rationale". A provider router
+(`router.py`) tries the configured primary (Groq `openai/gpt-oss-20b` or
+Gemini Flash), respects a Redis-backed per-provider quota
+(`quota.py`) and a 5-failure/60s circuit breaker, retries a transient
+failure once, fails over to the other provider on 429/5xx/timeout, and falls
+back to a deterministic template summary if both are unavailable - the
+workflow never blocks on an LLM. Requests are pseudonymized before sending
+(`pseudonymize.py`: DOB reduced to year, address to country, ID/contact
+details dropped, internal IDs replaced by a case-scoped alias, top 3 hits
+only); a response cache (`cache.py`, keyed by `sha256(purpose, prompt_version,
+payload)`) means identical payloads never call a provider twice; every call
+is logged to `llm_calls` regardless of outcome. Endpoints: `GET
+/api/v1/cases/{id}/summary`, `POST /api/v1/cases/{id}/decision-rationale-
+draft`, and `GET/POST /api/v1/llm/quota` and `/api/v1/llm/settings` for a
+platform admin to view live quota headroom and switch the primary provider
+or disable LLM features entirely.
 
 Phase 5 additions: an applicant-facing state machine
 (`backend/app/services/onboarding/state_machine.py`) with guarded
@@ -83,23 +123,26 @@ Implemented:
   threshold against a labelled ground truth set, with a precision-recall
   curve and a hybrid-vs-baseline comparison; see `docs/evaluation/report.md`.
 
-Not yet implemented (see PROJECT_PLAN.md for scope): LLM-assisted case
-summaries (Phase 6), the public website and compliance console
-(Phases 7-8), and the analytics dashboards (Phase 9).
+Not yet implemented (see PROJECT_PLAN.md for scope): the rest of the public
+website's page catalog and imagery pipeline (remainder of Phase 7), the
+compliance console and applicant portal UI (Phase 8), and the analytics
+dashboards (Phase 9).
 
 ## Prerequisites
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/) for dependency management
+- Node.js 20+ and npm (for `frontend/`)
 - Docker and Docker Compose
 
 ## Quick start
 
 ```
-make setup     # uv sync --extra dev
+make setup     # uv sync --extra dev; npm install in frontend/
 make up        # start Postgres (and, once built, Dagster) via Docker Compose
 make migrate   # apply Alembic migrations
 make seed      # run the sanctions ingestion pipeline
+make frontend-dev  # start the Vite dev server at localhost:5173
 ```
 
 To explore the pipeline interactively:

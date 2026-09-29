@@ -70,6 +70,29 @@ class Settings(BaseSettings):
     app_database_url: str = ""
     app_database_url_sync: str = ""
 
+    # --- LLM (Phase 6) ---
+    # The deterministic pipeline makes every routing decision; the LLM only
+    # drafts case summaries and decision rationale. Quota numbers are
+    # defaults for the free tiers of each console as of Phase 6 and should
+    # be tuned to whatever the account's console actually shows.
+    llm_enabled: bool = True
+    llm_primary: str = "groq"  # groq | gemini
+    llm_timeout_seconds: int = 8
+    llm_circuit_breaker_failures: int = 5
+    llm_circuit_breaker_cooldown_seconds: int = 60
+
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
+    groq_rpm: int = 30
+    groq_rpd: int = 14400
+    groq_tpm: int = 6000
+
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_rpm: int = 15
+    gemini_rpd: int = 1500
+    gemini_tpm: int = 1_000_000
+
     def sync_database_url(self) -> str:
         if self.database_url_sync:
             return self.database_url_sync

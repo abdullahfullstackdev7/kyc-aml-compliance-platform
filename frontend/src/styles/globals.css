@@ -1,0 +1,38 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/source-serif-4/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 250 251 252; /* #F7F9FC */
+    --fg: 30 37 48; /* #1E2530 */
+    --card-bg: 255 255 255;
+    --border: 226 231 240;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: 15 22 36;
+    --fg: 235 238 244;
+    --card-bg: 21 30 48;
+    --border: 42 54 78;
+  }
+
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--fg));
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

@@ -1,7 +1,8 @@
-.PHONY: setup up down migrate seed test lint e2e dagster-dev
+.PHONY: setup up down migrate seed test lint e2e dagster-dev frontend-dev
 
 setup:
 	uv sync --extra dev
+	cd frontend && npm install
 
 up:
 	docker compose up -d
@@ -28,3 +29,6 @@ e2e:
 
 dagster-dev:
 	uv run dagster dev -w pipelines/workspace.yaml
+
+frontend-dev:
+	cd frontend && npm run dev
