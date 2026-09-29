@@ -26,6 +26,7 @@ dataset/documents/
 node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/*.tsbuildinfo
 
 # Editors / OS
 .vscode/
